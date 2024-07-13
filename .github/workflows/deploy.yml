@@ -1,4 +1,4 @@
-name: Node.js CI
+name: Docker CI
 
 on:
   push:
@@ -9,26 +9,16 @@ on:
       - main
 
 jobs:
-  build:
+  build-and-run:
 
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [20.x]
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
+    - name: Build Docker image
+      run: docker build -t your-image-name -f lib/Dockerfile .
 
-    - name: Install dependencies
-      run: npm install
-
-    - name: Start application
-      run: npm start
-      
+    - name: Run Docker container
+      run: docker run -d -p 3000:3000 your-image-name npm start
