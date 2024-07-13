@@ -1,4 +1,4 @@
-name: Docker CI
+name: Node.js CI
 
 on:
   push:
@@ -9,22 +9,30 @@ on:
       - main
 
 jobs:
-  build-and-run:
+  build:
 
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Build Docker image
-      run: docker build -t your-image-name -f lib/Dockerfile .
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
 
-    - name: Run Docker container
-      run: docker run -d -p 3000:3000 your-image-name
+    - name: Install dependencies
+      run: npm install
 
-    - name: Wait for container to start
-      run: sleep 10 # Adjust as necessary if your application takes longer to start
+    - name: Install ffmpeg
+      run: |
+        sudo apt-get update
+        sudo apt-get install ffmpeg
 
-    - name: Execute npm start inside Docker container
-      run: docker exec $(docker ps -qf "ancestor=your-image-name") npm start
+    - name: Start application
+      run: npm start
