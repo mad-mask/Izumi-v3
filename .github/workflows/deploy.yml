@@ -21,4 +21,10 @@ jobs:
       run: docker build -t your-image-name -f lib/Dockerfile .
 
     - name: Run Docker container
-      run: docker run -d -p 3000:3000 your-image-name npm start
+      run: docker run -d -p 3000:3000 your-image-name
+
+    - name: Wait for container to start
+      run: sleep 10 # Adjust as necessary if your application takes longer to start
+
+    - name: Execute npm start inside Docker container
+      run: docker exec $(docker ps -qf "ancestor=your-image-name") npm start
