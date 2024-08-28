@@ -13,6 +13,54 @@ const {
   parsedUrl,
 } = require("../lib");
 const config = require("../config");
+const fetch = require("node-fetch"); 
+  izumi(
+  {
+    pattern: "yta ?(.*)",
+    fromMe: mode,
+    desc: "Download audio from YouTube",
+    type: "downloader",
+  },
+  async (message, match) => {
+    match = match || message.reply_message.text;
+    if (!match) return await message.reply("Give me a YouTube link");
+    if (!isUrl(match)) return await message.reply("Give me a valid YouTube link");
+
+    // Extract video ID using regex
+    let videoId = match.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/|user\/\S+|(?:c\/|channel\/|user\/)\S+|[^=]+v=))([^&?]+)/);
+    if (!videoId || !videoId[1]) return await message.reply("Could not extract video ID. Please provide a valid YouTube link.");
+
+    let cleanUrl = `https://youtu.be/${videoId[1]}`;
+
+    try {
+      let response = await fetch(`https://api.eypz.c0m.in/ytdl?url=${encodeURIComponent(cleanUrl)}`);
+      let media = await response.json();
+
+      if (!media.status) throw new Error("Download failed");
+
+      let { title, mp4, description, duration } = media.result;
+      await message.reply(`> Downloading: ${title}\n\nDescription: _${description}_\n> Duration: ${duration}`);
+
+      let videoBuffer = await getBuffer(mp4);
+      let audioBuffer = await toAudio(videoBuffer, 'mp4');
+
+      return await message.sendMessage(
+        message.jid,
+        audioBuffer,
+        {
+          mimetype: "audio/mpeg",
+          filename: `${title}.mp3`,
+          quoted: message.data
+        },
+        "audio"
+      );
+    } catch (error) {
+      console.error("Error downloading audio:", error);
+      return await message.reply(`Failed to download audio: ${error.message}`);
+    }
+  }
+);
+
 izumi(
   {
     pattern: "ytv ?(.*)",
@@ -25,20 +73,24 @@ izumi(
     if (!match) return await message.reply("Give me a YouTube link");
     if (!isUrl(match)) return await message.reply("Give me a valid YouTube link");
 
+    // Extract video ID using regex
+    let videoId = match.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/|user\/\S+|(?:c\/|channel\/|user\/)\S+|[^=]+v=))([^&?]+)/);
+    if (!videoId || !videoId[1]) return await message.reply("Could not extract video ID. Please provide a valid YouTube link.");
+
+    let cleanUrl = `https://youtu.be/${videoId[1]}`;
+
     try {
-      // Make a request to the API
-      let response = await fetch(`https://api.shannmoderz.xyz/downloader/yt-video?url=${encodeURIComponent(match)}`);
-      let data = await response.json(); // Parse the JSON directly
+      let response = await fetch(`https://api.eypz.c0m.in/ytdl?url=${encodeURIComponent(cleanUrl)}`);
+      let media = await response.json();
 
-      if (!data.status) throw new Error("Download failed");
+      if (!media.status) throw new Error("Download failed");
 
-      let { title, download_url } = data.result;
-      await message.reply(`_Downloading ${title}_`);
+      let { title, mp4, description, duration } = media.result;
+      await message.reply(`> Downloading: ${title}\n\nDescription: _${description}_\n> Duration: ${duration}`);
 
-      // Send the video using the download_url
       return await message.sendMessage(
         message.jid,
-        download_url,
+        mp4,
         {
           mimetype: "video/mp4",
           filename: `${title}.mp4`,
@@ -47,49 +99,94 @@ izumi(
         "video"
       );
     } catch (error) {
+      console.error("Error downloading video:", error);
       return await message.reply(`Failed to download video: ${error.message}`);
     }
   }
 );
-
-izumi(
-  {
-    pattern: "yta ?(.*)",
+izumi({
+    pattern: 'video ?(.*)',
     fromMe: mode,
-    desc: "Download audio from YouTube",
-    type: "downloader",
-  },
-  async (message, match) => {
-    match = match || message.reply_message.text;
-    if (!match) return await message.reply("Give me a YouTube link");
-    if (!isUrl(match)) return await message.reply("Give me a valid YouTube link");
-
+    desc: 'Search YouTube and return the MP4 URL.',
+    type: 'downloader'
+}, async (message, match, client) => {
+    const query = match || '';
+    const searchUrl = `https://api.eypz.c0m.in/ytdl/search?query=${encodeURIComponent(query)}`;
+    
     try {
-      // Make a request to the API
-      let response = await fetch(`https://api.shannmoderz.xyz/downloader/yt-audio?url=${encodeURIComponent(match)}`);
-      let data = await response.json(); // Parse the JSON directly
-
-      if (!data.status) throw new Error("Download failed");
-
-      let { title, download_url } = data.result;
-      await message.reply(`_Downloading ${title}_`);
-
-      // Send the video using the download_url
-      return await message.sendMessage(
-        message.jid,
-        download_url,
-        {
-          mimetype: "audio/mpeg",
-          filename: `${title}.mp3`,
-          quoted: message.data
-        },
-        "audio"
-      );
+        const searchResponse = await fetch(searchUrl);
+        const searchData = await searchResponse.json();
+        
+        if (searchData.results.length > 0) {
+            const firstResult = searchData.results[0];
+            const firstResultLink = firstResult.url;
+            const ytdlUrl = `https://api.eypz.c0m.in/ytdl?url=${encodeURIComponent(firstResultLink)}`;
+            
+            const ytdlResponse = await fetch(ytdlUrl);
+            const ytdlData = await ytdlResponse.json();
+            
+            if (ytdlData?.result?.mp4) {
+                const title = ytdlData.result.title || 'the file';
+                await message.reply(`Downloading ${title}...`);
+                await message.sendFile(ytdlData.result.mp4);
+            } else {
+                await message.reply('No MP4 URL found.');
+            }
+        } else {
+            await message.reply('No search results found.');
+        }
     } catch (error) {
-      return await message.reply(`Failed to download video: ${error.message}`);
+        await message.reply('An error occurred while processing your request.');
     }
-  }
-);
+});
+izumi({
+    pattern: 'song ?(.*)',
+    fromMe: mode,
+    desc: 'Search YouTube and return the MP4 URL.',
+    type: 'downloader'
+}, async (message, match, client) => {
+    const query = match || '';
+    const searchUrl = `https://api.eypz.c0m.in/ytdl/search?query=${encodeURIComponent(query)}`;
+    
+    try {
+        const searchResponse = await fetch(searchUrl);
+        const searchData = await searchResponse.json();
+        
+        if (searchData.results.length > 0) {
+            const firstResult = searchData.results[0];
+            const firstResultLink = firstResult.url;
+            const ytdlUrl = `https://api.eypz.c0m.in/ytdl?url=${encodeURIComponent(firstResultLink)}`;
+            
+            const ytdlResponse = await fetch(ytdlUrl);
+            const ytdlData = await ytdlResponse.json();
+            
+            if (ytdlData?.result?.mp4) {
+                const title = ytdlData.result.title || 'the file';
+                await message.reply(`Downloading ${title}...`);
+                let videoBuffer = await getBuffer(ytdlData.result.mp4);
+
+                let audioBuffer = await toAudio(videoBuffer, 'ytdlData.result.mp4');
+
+                return await message.sendMessage(
+                    message.jid,
+                    audioBuffer,
+                    {
+                        mimetype: "audio/mpeg",
+                        filename: `${title}.mp3`,
+                        quoted: message.data
+                    },
+                    "audio"
+                );
+            } else {
+                await message.reply('No MP4 URL found.');
+            }
+        } else {
+            await message.reply('No search results found.');
+        }
+    } catch (error) {
+        await message.reply('An error occurred while processing your request.');
+    }
+});
 izumi(
   {
     pattern: "yts ?(.*)",
@@ -106,7 +203,7 @@ izumi(
         return;
       }
 
-      const response = await getJson(eypzApi + `youtube?search=${encodeURIComponent(match)}`);
+      const response = await getJson(`https://api.eypz.c0m.in/ytdl/search?query=${encodeURIComponent(match)}`);
 
       if (!response || response.length === 0) {
         await message.reply("Sorry, no YouTube videos found for your search query.");
@@ -120,7 +217,7 @@ izumi(
       const contextInfoMessage = {
         text: formattedMessage,
         contextInfo: {
-          mentionedJid: [message.sender],
+          mentionedJid: [],
           forwardingScore: 1,
           isForwarded: true,
           forwardedNewsletterMessageInfo: {
@@ -141,12 +238,13 @@ izumi(
   }
 );
 
-function formatYouTubeMessage(videos) {
+function formatYouTubeMessage(apiResponse) {
+  const videos = apiResponse.results; // Extract the video results array
   let message = "*YouTube Search Results:*\n\n";
 
   videos.forEach((video, index) => {
-    message += `${index + 1}. *Title:* ${video.title}\n   *Duration:* ${video.duration}\n   *Link:* ${video.link}\n\n`;
+    message += `${index + 1}. *Title:* ${video.title}\n   *Author:* ${video.author}\n   *Duration:* ${video.duration}\n   *Link:* ${video.url}\n\n`;
   });
 
   return message;
-        }
+}
