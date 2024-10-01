@@ -3,7 +3,6 @@ const axios = require("axios");
 const fs = require("fs");
 const FormData = require("form-data");
 const util = require("util");
-
 izumi({
     pattern: 'url ?(.*)',
     fromMe: mode,
@@ -11,7 +10,6 @@ izumi({
     type: 'generator'
 }, async (m, text) => {
     if (!m.quoted) return m.reply("Reply to an image/video message");
-
     try {
         let media;
         if (m.quoted.image) {
@@ -52,12 +50,10 @@ izumi({
         await m.reply(`Error: ${error.message}`);
     }
 });
-
 async function TelegraphUpload(file) {
     return new Promise((resolve, reject) => {
         const formData = new FormData();
         formData.append("file", fs.createReadStream(file));
-
         axios({
             url: "https://telegra.ph/upload",
             method: "POST",
